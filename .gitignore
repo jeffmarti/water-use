@@ -1,0 +1,25 @@
+# R session files
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Large OpenET source data (over GitHub's 100 MB file limit; not used by the app)
+openet_monthly_huc2_17/
+openet_monthly_huc2_17.zip
+
+# Scratch pages from download_nwaa_wa.R
+nwaa_download_cache/
+
+# Local deployment records and tooling
+rsconnect/
+path/
+.claude/
+.rscignore
+
+# Standalone analysis scripts and outputs (not part of the deployed app)
+CompareUSGS_OpenET.R
+read_csvfilesinafolder.R
+get_huc12_wateruse.R
+dungeness_annual.csv
+wa_huc8_huc12_lookup.csv

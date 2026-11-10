@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LANID Irrigation Detection Rate by WA County</title>
+<style>
+  body { font-family: sans-serif; background: #fff; color: #222; margin: 24px; }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 16px; }
+  .legend-box { display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+  .summary-cards { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .card { background:#f4f3ef; border-radius:8px; padding:12px 16px; flex:1; min-width:120px; }
+  .card-label { font-size:12px; color:#666; margin-bottom:4px; }
+  .card-value { font-size:22px; font-weight:500; }
+</style>
+</head>
+<body>
+
+<h1>LANID Irrigation Detection Rate by Washington County</h1>
+<p class="subtitle">LANID (Landsat-based) irrigated acres vs. WSDA 2024 Crop Distribution reported irrigated acres</p>
+
+<div class="summary-cards">
+  <div class="card"><div class="card-label">Statewide detection rate</div><div class="card-value" id="overall-rate">—</div></div>
+  <div class="card"><div class="card-label">Eastern WA average</div><div class="card-value" style="color:#BA7517;" id="east-rate">—</div></div>
+  <div class="card"><div class="card-label">Western WA average</div><div class="card-value" style="color:#185FA5;" id="west-rate">—</div></div>
+</div>
+
+<div style="display:flex;gap:20px;margin-bottom:12px;font-size:13px;color:#666;">
+  <span><span class="legend-box" style="background:#EF9F27;"></span>Eastern WA county</span>
+  <span><span class="legend-box" style="background:#378ADD;"></span>Western WA county</span>
+</div>
+
+<div style="position:relative;width:100%;height:1280px;">
+  <canvas id="detChart" role="img" aria-label="Horizontal bar chart of LANID irrigation detection rates for all 39 Washington counties, sorted highest to lowest.">Detection rates by county comparing LANID Landsat-based irrigation acres to WSDA reported irrigated acres.</canvas>
+</div>
+
+<p style="font-size:12px;color:#888;margin-top:10px;">
+  Detection rate = LANID acres &divide; WSDA irrigated acres. Dashed line = statewide average.<br>
+  Sources: WSDA 2024 Crop Distribution; LANID 2020 (Landsat Irrigation Dataset, USGS).
+</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const eastCounties = new Set(['Adams','Asotin','Benton','Chelan','Columbia','Douglas','Ferry','Franklin','Garfield','Grant','Kittitas','Klickitat','Lincoln','Okanogan','Pend Oreille','Spokane','Stevens','Walla Walla','Whitman','Yakima']);
+
+const raw = [
+  {county:'Adams',lanid:133323,wsda:173564},
+  {county:'Asotin',lanid:57,wsda:445},
+  {county:'Benton',lanid:173546,wsda:218306},
+  {county:'Chelan',lanid:19171,wsda:23435},
+  {county:'Clallam',lanid:2275,wsda:3656},
+  {county:'Clark',lanid:1918,wsda:5300},
+  {county:'Columbia',lanid:548,wsda:2751},
+  {county:'Cowlitz',lanid:2403,wsda:4889},
+  {county:'Douglas',lanid:13870,wsda:20592},
+  {county:'Ferry',lanid:2231,wsda:3335},
+  {county:'Franklin',lanid:216742,wsda:241114},
+  {county:'Garfield',lanid:191,wsda:808},
+  {county:'Grant',lanid:444114,wsda:526515},
+  {county:'Grays Harbor',lanid:2574,wsda:7973},
+  {county:'Island',lanid:1112,wsda:2385},
+  {county:'Jefferson',lanid:319,wsda:1094},
+  {county:'King',lanid:1454,wsda:12521},
+  {county:'Kitsap',lanid:114,wsda:974},
+  {county:'Kittitas',lanid:68583,wsda:84752},
+  {county:'Klickitat',lanid:19252,wsda:40617},
+  {county:'Lewis',lanid:4139,wsda:13729},
+  {county:'Lincoln',lanid:40033,wsda:49201},
+  {county:'Mason',lanid:308,wsda:991},
+  {county:'Okanogan',lanid:39787,wsda:56898},
+  {county:'Pacific',lanid:1756,wsda:2618},
+  {county:'Pend Oreille',lanid:581,wsda:1957},
+  {county:'Pierce',lanid:1972,wsda:5870},
+  {county:'San Juan',lanid:0,wsda:356},
+  {county:'Skagit',lanid:17824,wsda:44560},
+  {county:'Skamania',lanid:20,wsda:395},
+  {county:'Snohomish',lanid:5045,wsda:20570},
+  {county:'Spokane',lanid:8852,wsda:11608},
+  {county:'Stevens',lanid:9201,wsda:14164},
+  {county:'Thurston',lanid:3177,wsda:6740},
+  {county:'Wahkiakum',lanid:4,wsda:454},
+  {county:'Walla Walla',lanid:75074,wsda:119863},
+  {county:'Whatcom',lanid:25720,wsda:55727},
+  {county:'Whitman',lanid:4126,wsda:6232},
+  {county:'Yakima',lanid:243574,wsda:275808},
+];
+
+raw.forEach(d => {
+  d.rate = d.wsda > 0 ? Math.round((d.lanid / d.wsda) * 1000) / 10 : 0;
+  d.isEast = eastCounties.has(d.county);
+});
+
+raw.sort((a,b) => b.rate - a.rate);
+
+const totalLanid = raw.reduce((s,d) => s+d.lanid, 0);
+const totalWsda  = raw.reduce((s,d) => s+d.wsda,  0);
+const overallRate = Math.round((totalLanid/totalWsda)*1000)/10;
+
+const eastData = raw.filter(d=>d.isEast);
+const westData = raw.filter(d=>!d.isEast);
+const eastAvg = Math.round((eastData.reduce((s,d)=>s+d.lanid,0)/eastData.reduce((s,d)=>s+d.wsda,0))*1000)/10;
+const westAvg = Math.round((westData.reduce((s,d)=>s+d.lanid,0)/westData.reduce((s,d)=>s+d.wsda,0))*1000)/10;
+
+document.getElementById('overall-rate').textContent = overallRate + '%';
+document.getElementById('east-rate').textContent = eastAvg + '%';
+document.getElementById('west-rate').textContent = westAvg + '%';
+
+const labels = raw.map(d => d.county);
+const rates  = raw.map(d => d.rate);
+const colors = raw.map(d => d.isEast ? '#EF9F27' : '#378ADD');
+const borderColors = raw.map(d => d.isEast ? '#BA7517' : '#185FA5');
+
+const overallPlugin = {
+  id: 'overallLine',
+  afterDraw(chart) {
+    const {ctx, scales:{x,y}} = chart;
+    const xPos = x.getPixelForValue(overallRate);
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([5,4]);
+    ctx.strokeStyle = '#888780';
+    ctx.lineWidth = 1.5;
+    ctx.moveTo(xPos, y.top);
+    ctx.lineTo(xPos, y.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#888780';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Statewide avg', xPos, y.top - 6);
+    ctx.fillText(overallRate + '%', xPos, y.top - 18);
+    ctx.restore();
+  }
+};
+
+new Chart(document.getElementById('detChart'), {
+  type: 'bar',
+  plugins: [overallPlugin],
+  data: {
+    labels,
+    datasets: [{
+      label: 'Detection rate (%)',
+      data: rates,
+      backgroundColor: colors,
+      borderColor: borderColors,
+      borderWidth: 0.5,
+      borderRadius: 2,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const d = raw[ctx.dataIndex];
+            return [
+              ` Detection: ${d.rate}%`,
+              ` LANID: ${d.lanid.toLocaleString()} ac`,
+              ` WSDA:  ${d.wsda.toLocaleString()} ac`,
+              ` Region: ${d.isEast ? 'Eastern WA' : 'Western WA'}`
+            ];
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        min: 0,
+        max: 105,
+        title: { display: true, text: 'LANID detection rate (% of WSDA irrigated acres)', font: { size: 12 } },
+        ticks: { callback: v => v + '%', autoSkip: false },
+        grid: { color: 'rgba(136,135,128,0.15)' }
+      },
+      y: {
+        ticks: { font: { size: 11 }, autoSkip: false },
+        grid: { display: false }
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>
